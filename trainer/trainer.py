@@ -39,11 +39,19 @@ class Trainer(BaseTrainer):
         """
         self.model.train()
         self.train_metrics.reset()
-        for batch_idx, (data, target) in enumerate(self.data_loader):
-            data, target = data.to(self.device), target.to(self.device)
-
+        # for batch_idx, (data, target) in enumerate(self.data_loader):
+        for batch_idx, [view_list, depth_list, flow_list, truth] in enumerate(self.data_loader):
+            # data, target = data.to(self.device), target.to(self.device)
+            for i, item in enumerate(view_list):
+                view_list[i] = item.to(self.device)
+            for i, item in enumerate(depth_list):
+                depth_list[i] = item.to(self.device)
+            for i, item in enumerate(flow_list):
+                flow_list[i] = item.to(self.device)
+            target = truth.to(self.device)
+            
             self.optimizer.zero_grad()
-            output = self.model(data)
+            output = self.model(view_list, depth_list, flow_list)
             loss = self.criterion(output, target)
             loss.backward()
             self.optimizer.step()
