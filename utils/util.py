@@ -69,6 +69,7 @@ def upsample_zero_2d(img: torch.Tensor,
     """
     # input shape is: batch x channels x height x width
     # output shape is:
+    device = img.device
     if size is not None and scale_factor is not None:
         raise ValueError("Should either define both size and scale_factor!")
     if size is None and scale_factor is None:
@@ -98,7 +99,7 @@ def upsample_zero_2d(img: torch.Tensor,
     ##
     # todo: use output.view(...) instead.
     output[:, :, ::scale_factor[0], ::scale_factor[1]] = img
-    return output
+    return output.to(device=device)
 
 
 # bit dirty.

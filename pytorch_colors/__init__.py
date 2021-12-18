@@ -21,7 +21,7 @@ def _generic_transform_sk_4d(transform, in_type='', out_type=''):
         if to_squeeze:
             input_ = input_.unsqueeze(0)
 
-        input_ = input_.permute(0, 2, 3, 1).numpy()
+        input_ = input_.permute(0, 2, 3, 1).detach().numpy()
         transformed = transform(input_)
         output = torch.from_numpy(transformed).float().permute(0, 3, 1, 2)
         if to_squeeze:

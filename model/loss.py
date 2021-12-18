@@ -18,13 +18,13 @@ def feature_reconstruction_loss(conv_layer_output: torch.Tensor, conv_layer_targ
     694–711.
     Takes the already-computed output from the VGG16 convolution layers.
     """
-    if conv_layer_output.shape != conv_layer_target:
-        raise ValueError("Output and target tensors have different dimensions!")
+    if conv_layer_output.shape != conv_layer_target.shape:
+        raise ValueError("Output and target tensors have different dimensions!"+str(conv_layer_output.shape)+","+str(conv_layer_target.shape))
     loss = conv_layer_output.dist(conv_layer_target, p=2) / torch.numel(conv_layer_output)
     return loss
 
 
-def nsrr_loss(output: torch.Tensor, target: torch.Tensor, w: float) -> torch.Tensor:
+def nsrr_loss(output: torch.Tensor, target: torch.Tensor, w: float=0.1) -> torch.Tensor:
     """
     Computes the loss as defined in the NSRR paper.
     """

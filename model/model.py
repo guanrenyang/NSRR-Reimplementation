@@ -6,7 +6,6 @@ from torch.cuda import current_blas_handle
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
-import cv2
 import numpy as np
 from base import BaseModel
 
@@ -17,7 +16,7 @@ from utils import upsample_zero_2d
 # from base import BaseModel
 class NSRR(BaseModel):
     def __init__(self, upsample_scale, height=10, length=10) -> None:
-        super().__init__()
+        super(NSRR, self).__init__()
 
         self.cur_i_fea_ext  = FeatureExtraction()
         self.pre_i1_fea_ext = FeatureExtraction()
@@ -51,11 +50,13 @@ class NSRR(BaseModel):
         pre_i3_view, pre_i3_depth, pre_i3_flow = view_list[3], depth_list[3], flow_list[3]
         pre_i4_view, pre_i4_depth, pre_i4_flow = view_list[4], depth_list[4], flow_list[4]
 
+        
         # current frame path 1
         h_cur_i_1 = self.zero_upsample(self.cur_i_fea_ext(rgb_to_ycbcr(cur_i_view), cur_i_depth))
         # current frame path 2
         h_cur_i_2 = self.zero_upsample(torch.concat((cur_i_view, cur_i_depth), dim=channel_dim))
-        
+       
+       
         # zero upsample for previous frames
         pre_i1_sampled = self.zero_upsample(self.pre_i1_fea_ext(pre_i1_view, pre_i1_depth))
         pre_i2_sampled = self.zero_upsample(self.pre_i2_fea_ext(pre_i2_view, pre_i2_depth))
@@ -84,16 +85,20 @@ class NSRR(BaseModel):
 
         # Feature reweighting
         previous_feature_list = [pre_i1_warped, pre_i2_warped, pre_i3_warped, pre_i4_warped]
+        
+
         weighted_previous_feature_list = self.feature_reweighting(h_cur_i_2, previous_feature_list)
         out = self.reconstruction(h_cur_i_1, weighted_previous_feature_list)
-        
-        return ycbcr_to_rgb(out)
+       
+        out = ycbcr_to_rgb(out)
+    
+        return out
         
 
 class FeatureExtraction(BaseModel):
     '''Feature Extraction Network (特征提取网络)'''
     def __init__(self, kernel_size = 3, padding = 'same'):
-        super().__init__()
+        super(FeatureExtraction, self).__init__()
         self.net = nn.Sequential(
             nn.Conv2d(in_channels= 4, out_channels= 32, kernel_size= kernel_size, padding= padding),
             nn.ReLU(),
@@ -150,8 +155,9 @@ class BackwardWarp(BaseModel):
         grid_x = grid_x.view(1, 1, height, width).repeat(index_batch, 1, 1, 1)
         grid_y = grid_y.view(1, 1, height, width).repeat(index_batch, 1, 1, 1)
         ##
-        grid = torch.cat((grid_x, grid_y), 1).float()
-
+        
+        grid = torch.cat((grid_x, grid_y), 1).float().to(device=x_motion.device)
+    
         # grid is: [batch, channel (2), height, width]
         vgrid = grid + x_motion
         # Grid values must be normalised positions in [-1, 1]
@@ -161,7 +167,7 @@ class BackwardWarp(BaseModel):
         vgrid[:, 1, :, :] = (vgrid_y / height) * 2.0 - 1.0
         # swapping grid dimensions in order to match the input of grid_sample.
         # that is: [batch, output_height, output_width, grid_pos (2)]
-        vgrid = vgrid.permute((0, 2, 3, 1))
+        vgrid = vgrid.permute((0, 2, 3, 1)).to(device=x_image.device)
         output = F.grid_sample(x_image, vgrid, mode='bilinear', align_corners=False)
         return output
     
@@ -188,7 +194,7 @@ class BackwardWarp(BaseModel):
 class FeatureReweighting(BaseModel):
     '''Feature Reweighting Network (特征重加权网络))'''
     def __init__(self, kernel_size = 3, padding = 'same', scale = 10):
-        super().__init__()
+        super(FeatureReweighting, self).__init__()
 
         self.scale = scale
 
@@ -196,7 +202,9 @@ class FeatureReweighting(BaseModel):
             # We think of the input as the concatanation of RGB-Ds of current frame, which has 4 channles
             # and full features of previous frames, each of which has 12 channels
             # so `in_channels=20`, which is 4+4*12 = 52
-            nn.Conv2d(in_channels= 52, out_channels= 32, kernel_size= kernel_size, padding= padding),
+            # Update: to save memory, we have to feed the upsampled RGB-D to compute a weight
+            # and calculate the weighted sum of the 12 channels
+            nn.Conv2d(in_channels= 20, out_channels= 32, kernel_size= kernel_size, padding= padding),
             nn.ReLU(),
             nn.Conv2d(in_channels= 32, out_channels= 32, kernel_size= kernel_size, padding= padding),
             nn.ReLU(),
@@ -206,17 +214,18 @@ class FeatureReweighting(BaseModel):
     def forward(self, upsampled_current_feature: torch.Tensor, previous_features: List[torch.Tensor], channel_dim = 1)->List[torch.Tensor]:
         # each previous feature has 4 channels 
         # 4 previous frames in all
-        assert previous_features[0].shape[1]==4
-        x = torch.concat((upsampled_current_feature,)+tuple(previous_features), dim= channel_dim)
+        
+        x = torch.concat((upsampled_current_feature,)+tuple(previous_features[i][:,8:, :, :] for i in range(len(previous_features))), dim= channel_dim)
         w = self.net(x)
         w = (w-(-1))/2*10 # Scale
-        weighted_previous_features = [w[:,i,:,:]*previous_features[i] for i in range(4)] # Reweighting
+        
+        weighted_previous_features = [w[:,i,:,:].unsqueeze(1)*previous_features[i] for i in range(4)] # Reweighting
         return weighted_previous_features
     
 class Reconstruction(BaseModel):
     '''Recomstriction Network (重建网络)'''
     def __init__(self, kernel_size=3, padding='same'):
-        super().__init__()
+        super(Reconstruction, self).__init__()
         self.pooling = nn.MaxPool2d(2)
 
         self.num_previous_frames = 4
@@ -304,6 +313,7 @@ class LayerOutputModelDecorator(BaseModel):
                 self.output_layers.append(torch.Tensor())
 
     def forward(self, x) -> List[torch.Tensor]:
+        x = x.to(device=next(self.model.parameters()).device)
         self.model(x)
         return self.output_layers
 
