@@ -12,27 +12,28 @@
         "type": "NSRRDataLoader",
         "args":{
             "data_dir": "data/",
-            "batch_size": 8,
+            "batch_size": 3,
             "shuffle": true,
             "validation_split": 0.1,
             "num_workers": 4,
             "img_dirname": "img/",
             "depth_dirname": "depth/",
             "flow_dirname": "flow/",
-            "downsample": 2
+            "downsample": 2,
+	    "num_data": 500
         }
     },
     "optimizer": {
         "type": "Adam",
         "args":{
-            "lr": 0.001,
+            "lr": 0.1,
             "weight_decay": 0,
             "amsgrad": true
         }
     },
     "loss": "nsrr_loss",
     "metrics": [
-        "accuracy", "top_k_acc"
+        "ssim"
     ],
     "lr_scheduler": {
         "type": "StepLR",
@@ -42,15 +43,15 @@
         }
     },
     "trainer": {
-        "epochs": 100,
+        "epochs": 200,
 
         "save_dir": "saved/",
-        "save_period": 1,
+        "save_period": 2,
         "verbosity": 2,
         
         "monitor": "min val_loss",
         "early_stop": 10,
 
-        "tensorboard": true
+        "tensorboard": false
     }
 }

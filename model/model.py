@@ -52,7 +52,8 @@ class NSRR(BaseModel):
 
         
         # current frame path 1
-        h_cur_i_1 = self.zero_upsample(self.cur_i_fea_ext(rgb_to_ycbcr(cur_i_view), cur_i_depth))
+        # h_cur_i_1 = self.zero_upsample(self.cur_i_fea_ext(rgb_to_ycbcr(cur_i_view), cur_i_depth))
+        h_cur_i_1 = self.zero_upsample(self.cur_i_fea_ext(cur_i_view, cur_i_depth))
         # current frame path 2
         h_cur_i_2 = self.zero_upsample(torch.concat((cur_i_view, cur_i_depth), dim=channel_dim))
        
@@ -90,7 +91,7 @@ class NSRR(BaseModel):
         weighted_previous_feature_list = self.feature_reweighting(h_cur_i_2, previous_feature_list)
         out = self.reconstruction(h_cur_i_1, weighted_previous_feature_list)
        
-        out = ycbcr_to_rgb(out)
+        # out = ycbcr_to_rgb(out)
     
         return out
         

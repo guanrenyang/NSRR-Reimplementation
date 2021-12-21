@@ -3,7 +3,8 @@ import torch
 from torchvision.utils import make_grid
 from base import BaseTrainer
 from utils import inf_loop, MetricTracker
-
+import torchvision
+from PIL import Image
 
 class Trainer(BaseTrainer):
     """
@@ -52,6 +53,11 @@ class Trainer(BaseTrainer):
             
             self.optimizer.zero_grad()
             output = self.model(view_list, depth_list, flow_list)
+
+            #DEBUG
+            toPILImage = torchvision.transforms.ToPILImage()
+            toPILImage(output[0]).save(f'./output_pic/epoch_{epoch}_batch_{batch_idx}.png')
+            
             loss = self.criterion(output, target)
             loss.backward()
             self.optimizer.step()
