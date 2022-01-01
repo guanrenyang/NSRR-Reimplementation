@@ -1,7 +1,9 @@
 
 import os
 
-from numpy import pi
+from numpy import pi, unicode_
+from torch._C import set_flush_denormal
+from torchvision.transforms.transforms import Resize
 from base import BaseDataLoader
 
 import torch.nn as nn
@@ -32,14 +34,16 @@ class NSRRDataLoader(BaseDataLoader):
                  validation_split: float = 0.0,
                  num_workers: int = 1,
                  downsample: Union[Tuple[int, int], List[int], int] = (2, 2),
-                 num_data: Union[int,None] = None
+                 num_data: Union[int,None] = None,
+                 resize_factor : Union[int, None] = None,
                  ):
         dataset = NSRRDataset(data_dir,
                               img_dirname=img_dirname,
                               depth_dirname=depth_dirname,
                               flow_dirname=flow_dirname,
                               downsample=downsample,
-                              num_data=num_data
+                              num_data=num_data,
+                              resize_factor = resize_factor
                               )
         super(NSRRDataLoader, self).__init__(dataset=dataset,
                                              batch_size=batch_size,
@@ -60,7 +64,8 @@ class NSRRDataset(Dataset):
                  flow_dirname: str,
                  downsample: Union[Tuple[int, int], List[int], int] = (2, 2),
                  transform: nn.Module = None,
-                 num_data:Union[int, None] = None
+                 num_data:Union[int, None] = None,
+                 resize_factor:Union[int, None] = None,
                  ):
         super(NSRRDataset, self).__init__()
 
@@ -68,6 +73,7 @@ class NSRRDataset(Dataset):
         self.img_dirname = img_dirname
         self.depth_dirname = depth_dirname
         self.flow_dirname = flow_dirname
+        self.resize_factor = resize_factor
 
         if type(downsample) == int:
             downsample = (downsample, downsample)
@@ -76,6 +82,7 @@ class NSRRDataset(Dataset):
         if transform is None:
             self.transform = tf.ToTensor()
         self.img_list = os.listdir(os.path.join(self.data_dir, self.img_dirname))
+        self.img_list = sorted(self.img_list, key=lambda keys:[ord(i) for i in keys],reverse=False)
         
         self.data_list = []
         
@@ -86,15 +93,16 @@ class NSRRDataset(Dataset):
                 break   
             current_frame = self.img_list[i+4]
             pre_1, pre_2, pre_3, pre_4 = self.img_list[i+3], self.img_list[i+2], self.img_list[i+1], self.img_list[i]
-            self.data_list.append([current_frame, pre_1, pre_2, pre_3, pre_4])
-
+            
+            if 'a'<=current_frame[0]<='e' and not (current_frame[0]==pre_1[0]==pre_2[0]==pre_3[0]==pre_4[0]):
+                continue
+            else:
+                self.data_list.append([current_frame, pre_1, pre_2, pre_3, pre_4])
+                
     def __getitem__(self, index):
         # view
         # image_name = self.view_listdir[index]
         data = self.data_list[index]
-
-        
-        high_size = 128
 
         view_list, depth_list, flow_list, truth_list = [], [], [], []
         # elements in the lists following the order: current frame i, pre i-1, pre i-2, pre i-3, pre i-4
@@ -103,11 +111,18 @@ class NSRRDataset(Dataset):
             depth_path = os.path.join(self.data_dir, self.depth_dirname, frame)
             flow_path = os.path.join(self.data_dir, self.flow_dirname, frame)
             
+            img_view_truth = Image.open(img_path)
+            img_flow = Image.open(flow_path)
+            img_depth = Image.open(depth_path).convert(mode="L")
+
+            img_view_truth = img_view_truth.resize((img_view_truth.size[0]//self.resize_factor, img_view_truth.size[1]//self.resize_factor), Image.ANTIALIAS)
+            img_flow = img_flow.resize((img_flow.size[0]//self.resize_factor, img_flow.size[1]//self.resize_factor), Image.ANTIALIAS)
+            img_depth = img_depth.resize((img_depth.size[0]//self.resize_factor, img_depth.size[1]//self.resize_factor), Image.ANTIALIAS)
+
             trans = self.transform
 
-            img_view_truth = trans(Image.open(img_path).resize((high_size, high_size)))
-
-            img_flow = trans(Image.open(flow_path).resize((high_size, high_size)))
+            img_view_truth = trans(img_view_truth)
+            img_flow = trans(img_flow)
 
             downscaled_size = get_downscaled_size(img_view_truth.unsqueeze(0), self.downsample)
 
@@ -116,7 +131,7 @@ class NSRRDataset(Dataset):
 
             img_view = trans_downscale(img_view_truth)
             # depth data is in a single-channel image.
-            img_depth = trans(Image.open(depth_path).resize((high_size, high_size)).convert(mode="L"))
+            img_depth = trans(img_depth)
             
             view_list.append(img_view)
             depth_list.append(img_depth)

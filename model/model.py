@@ -15,6 +15,10 @@ from pytorch_colors import rgb_to_hsv, rgb_to_ycbcr, ycbcr_to_rgb
 from utils import upsample_zero_2d
 # from base import BaseModel
 class NSRR(BaseModel):
+    '''
+    The complete NSRR model except for the color space conversion.
+    The color space conversion will cause the autograd of pytorch to fail, so we abandoned it.
+    '''
     def __init__(self, upsample_scale, height=10, length=10) -> None:
         super(NSRR, self).__init__()
 
@@ -24,18 +28,11 @@ class NSRR(BaseModel):
         self.pre_i3_fea_ext = FeatureExtraction()
         self.pre_i4_fea_ext = FeatureExtraction()
 
-        # self.cur_i_upsample_1 = ZeroUpSampling(upsample_scale)
-        # self.cur_i_upsample_2 = ZeroUpSampling(upsample_scale)
-        # self.pre_i1_upsample = ZeroUpSampling(upsample_scale)
-        # self.pre_i2_upsample = ZeroUpSampling(upsample_scale)
-        # self.pre_i3_upsample = ZeroUpSampling(upsample_scale)
-        # self.pre_i4_upsample = ZeroUpSampling(upsample_scale)
         self.zero_upsample = ZeroUpSampling(upsample_scale)
         self.backward_warp = BackwardWarp()
 
         self.feature_reweighting = FeatureReweighting()
         self.reconstruction = Reconstruction()
-
 
     def forward(self, view_list, depth_list, flow_list, channel_dim = 1):
         '''
@@ -66,7 +63,6 @@ class NSRR(BaseModel):
         
         # backward warp
         '''
-        Commented by RenyangGuan
         We are not sure to use the i-1th motion to warp the i-1th frame 
             or to use the ith motion to warp the i-1th frame 
         '''
@@ -108,6 +104,7 @@ class FeatureExtraction(BaseModel):
             nn.Conv2d(in_channels= 32, out_channels= 8, kernel_size= kernel_size, padding= padding),
             nn.ReLU()
         )
+        
     def forward(self, color_map: torch.Tensor, depth_map: torch.Tensor, channel_dim = 1)->torch.Tensor: # `channel`is in dim_1 by default
         # color map: (3, Height, Width)
         # depth map: (1, Height, Width)
@@ -122,6 +119,7 @@ class FeatureExtraction(BaseModel):
 class ZeroUpSampling(BaseModel):
     """
     Basic layer for zero-upsampling of 2D images (4D tensors).
+    This module is directly imported from NSRR-PyTorch(https://github.com/IMAC-projects/NSRR-PyTorch)
     """
 
     scale_factor: Tuple[int, int]
@@ -139,6 +137,7 @@ class ZeroUpSampling(BaseModel):
 class BackwardWarp(BaseModel):
     """
     A model for backward warping 2D image tensors according to motion tensors.
+    This module is directly imported from NSRR-PyTorch(https://github.com/IMAC-projects/NSRR-PyTorch)
     """
     def __init__(self):
         super(BackwardWarp, self).__init__()
@@ -155,10 +154,8 @@ class BackwardWarp(BaseModel):
         grid_y = torch.arange(height).view(-1, 1).repeat(1, width)
         grid_x = grid_x.view(1, 1, height, width).repeat(index_batch, 1, 1, 1)
         grid_y = grid_y.view(1, 1, height, width).repeat(index_batch, 1, 1, 1)
-        ##
-        
+        ##  
         grid = torch.cat((grid_x, grid_y), 1).float().to(device=x_motion.device)
-    
         # grid is: [batch, channel (2), height, width]
         vgrid = grid + x_motion
         # Grid values must be normalised positions in [-1, 1]
@@ -203,9 +200,8 @@ class FeatureReweighting(BaseModel):
             # We think of the input as the concatanation of RGB-Ds of current frame, which has 4 channles
             # and full features of previous frames, each of which has 12 channels
             # so `in_channels=20`, which is 4+4*12 = 52
-            # Update: to save memory, we have to feed the upsampled RGB-D to compute a weight
-            # and calculate the weighted sum of the 12 channels
-            nn.Conv2d(in_channels= 20, out_channels= 32, kernel_size= kernel_size, padding= padding),
+            # To save memory, we have to feed the upsampled RGB-D to compute a weight and calculate the weighted sum of the 12 channels
+            nn.Conv2d(in_channels= 52, out_channels= 32, kernel_size= kernel_size, padding= padding),
             nn.ReLU(),
             nn.Conv2d(in_channels= 32, out_channels= 32, kernel_size= kernel_size, padding= padding),
             nn.ReLU(),
@@ -216,7 +212,7 @@ class FeatureReweighting(BaseModel):
         # each previous feature has 4 channels 
         # 4 previous frames in all
         
-        x = torch.concat((upsampled_current_feature,)+tuple(previous_features[i][:,8:, :, :] for i in range(len(previous_features))), dim= channel_dim)
+        x = torch.concat((upsampled_current_feature,)+tuple(previous_features[i][:,:, :, :] for i in range(len(previous_features))), dim= channel_dim)
         w = self.net(x)
         w = (w-(-1))/2*10 # Scale
         
@@ -289,9 +285,11 @@ class Reconstruction(BaseModel):
 
         return out_decoder_2
 
+
 class LayerOutputModelDecorator(BaseModel):
     """
     A Decorator for a Model to output the output from an arbitrary set of layers.
+    This module is used to compute loss function and directly imported from NSRR-PyTorch(https://github.com/IMAC-projects/NSRR-PyTorch) 
     """
 
     def __init__(self, model: nn.Module, layer_predicate: Callable[[str, nn.Module], bool]):
@@ -317,35 +315,3 @@ class LayerOutputModelDecorator(BaseModel):
         x = x.to(device=next(self.model.parameters()).device)
         self.model(x)
         return self.output_layers
-
-   # For Debug     
-# net_1 = FeatureExtraction()
-# x = torch.ones((1, 3, 8 ,16))
-# y = torch.ones((1, 1, 8 ,16))
-# z = torch.ones((1, 4, 8 ,16))
-# # print(x.shape[1])
-# # print(torch.concat((x,)+(y,z), dim = 1).shape)
-# # print(net(x, y).shape)
-# # print(torch.concat((x,y), dim=1).shape)
-
-# net_2 = FeatureReweighting()
-# current = torch.ones((1, 4, 8, 16))
-# previous = [torch.ones((1, 4, 8, 16)) for i in range(4)]
-# # for i in range(4):
-# #     print(net_2(current, previous)[i].shape)
-
-# net_3 = Reconstruction()
-# current = torch.ones((1, 12, 8, 16))
-# previous = [torch.ones((1, 12, 8, 16)) for i in range(4)]
-# # print(net_3(current, previous).shape)
-
-# net_4 = BackwardWarp()
-# current = torch.ones((1, 12, 8, 16))
-# img = cv2.imread('T:\\GitHub\\NSRR-Reimplementation\\model\\motion.png')
-# img_tensor = torch.tensor(img).reshape((1, 3, 480, 720))
-# print(img_tensor.shape)
-# img_tensor_rgb = (net_4.optical_flow_to_motion(img_tensor)).view((-1, 480, 720))
-# img_rgb = np.array(img_tensor_rgb)
-# print(img_tensor_rgb.shape)
-# cv2.imshow('Image', img_rgb)
-# input()

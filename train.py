@@ -34,7 +34,12 @@ def main(config):
     model = model.to(device)
     if len(device_ids) > 1:
         model = torch.nn.DataParallel(model, device_ids=device_ids)
-    
+
+    # initialize parameters
+    for item in model.modules():
+        if isinstance(item, torch.nn.Conv2d):
+            torch.nn.init.xavier_normal_(item.weight)
+
     # get function handles of loss and metrics
     criterion = getattr(module_loss, config['loss'])
     metrics = [getattr(module_metric, met) for met in config['metrics']]

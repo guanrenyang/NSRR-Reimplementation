@@ -8,6 +8,9 @@ from model import LayerOutputModelDecorator
 
 from typing import List
 
+'''
+This file is directly imported from NSRR-PyTorch(https://github.com/IMAC-projects/NSRR-PyTorch)
+'''
 
 def feature_reconstruction_loss(conv_layer_output: torch.Tensor, conv_layer_target: torch.Tensor) -> torch.Tensor:
     """
@@ -24,9 +27,10 @@ def feature_reconstruction_loss(conv_layer_output: torch.Tensor, conv_layer_targ
     return loss
 
 
-def nsrr_loss(output: torch.Tensor, target: torch.Tensor, w: float=0.1) -> torch.Tensor:
+def nsrr_loss(output: torch.Tensor, target: torch.Tensor, w: float=1) -> torch.Tensor:
     """
     Computes the loss as defined in the NSRR paper.
+    
     """
     loss_ssim = 1 - pytorch_ssim.ssim(output, target)
     loss_perception = 0
