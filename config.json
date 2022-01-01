@@ -11,7 +11,7 @@
     "data_loader": {
         "type": "NSRRDataLoader",
         "args":{
-            "data_dir": "data/two_man_fight/train",
+            "data_dir": "data/Scene_1/train",
             "batch_size": 1,
             "shuffle": true,
             "validation_split": 0.1,
