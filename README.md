@@ -90,46 +90,46 @@ NSRR-Reimplementation/
 
 Config files are in `.json` format:
 
-```json
+```
 {
-    "name": "NSRR",								// training session name
-    "n_gpu": 2,								    // number of GPUs to use for training.
+    "name": "NSRR",				 // training session name
+    "n_gpu": 2,					 // number of GPUs to use for training.
     "arch": {
-        "type": "NSRR",							// name of model architecture to train
+        "type": "NSRR",				 // name of model architecture to train
         "args": {
-            "upsample_scale": 2					 // rate of supersampling, must be the same as `downsample` below
+            "upsample_scale": 2			 // rate of supersampling, must be the same as `downsample` below
         }
     },
     "data_loader": {
-        "type": "NSRRDataLoader",				 // selecting data loader
+        "type": "NSRRDataLoader",		  // selecting data loader
         "args":{
             "data_dir": "data/Scene_1/train",	  // dataset path which includes directories 'depth', 'img', and 'flow'
-            "batch_size": 1,					// batch size
+            "batch_size": 1,			  // batch size
             "shuffle": true,
-            "validation_split": 0.1,			 // size of validation dataset. float(portion) or int(number of samples)
-            "num_workers": 4,					// number of cpu processes to be used for data loading
+            "validation_split": 0.1,		  // size of validation dataset. float(portion) or int(number of samples)
+            "num_workers": 4,			  // number of cpu processes to be used for data loading
             "img_dirname": "img/",
             "depth_dirname": "depth/",
             "flow_dirname": "flow/",
-            "downsample": 2,					// rate of supersampling, must be the same as `upsample_scale` above
-	    "num_data": 120, 					    // amount of training data
-	    "resize_factor": 3					    // reduce the rendered image by 1/resize_factor as ground truth
+            "downsample": 2,			   // rate of supersampling, must be the same as `upsample_scale` above
+	    "num_data": 120, 			   // amount of training data
+	    "resize_factor": 3			   // reduce the rendered image by 1/resize_factor as ground truth
         }
     },
     "optimizer": {
         "type": "Adam",
         "args":{
-            "lr": 0.001,						// learning rate
-            "weight_decay": 0,					 // (optional) weight decay
+            "lr": 0.001,			    // learning rate
+            "weight_decay": 0,			    // (optional) weight decay
             "amsgrad": true
         }
     },
-    "loss": "nsrr_loss",						// loss
+    "loss": "nsrr_loss",			    // loss
     "metrics": [
-        "psnr","ssim"							// list of metrics to evaluate
+        "psnr","ssim"				    // list of metrics to evaluate
     ],
     "lr_scheduler": {
-        "type": "StepLR",						 // learning rate scheduler
+        "type": "StepLR",			    // learning rate scheduler
         "args": {
             "step_size": 50,
             "gamma": 0.1
@@ -142,7 +142,7 @@ Config files are in `.json` format:
     "verbosity": 2,                    // 0: quiet, 1: per epoch, 2: full
   
     "monitor": "min val_loss"          // mode and metric for model performance monitoring. set 'off' to disable.
-    "early_stop": 10	                 // number of epochs to wait before early stop. set 0 to disable.
+    "early_stop": 10	               // number of epochs to wait before early stop. set 0 to disable.
   
     "tensorboard": true,               // enable tensorboard visualization
   }
